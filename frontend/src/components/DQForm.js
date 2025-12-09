@@ -12,7 +12,7 @@ import {
   ListItemText,
 } from "@mui/material";
 
-function DQForm() {
+function DQForm({ onRunDQ, onReprocess, loading, message }) {
   const [catalogName, setCatalogName] = useState("");
   const [schemaName, setSchemaName] = useState("");
   const [tableName, setTableName] = useState("");
@@ -22,16 +22,15 @@ function DQForm() {
 
   const [dqRules, setDqRules] = useState([]);
 
-  // Available DQ rules
   const dqRuleOptions = [
-    { label: "Null Check", value: "Null Check" },
-    { label: "Numeric Check", value: "Numeric Check" },
-    { label: "Range Check", value: "Range Check" },
-    { label: "Duplicate Check", value: "Duplicate Check" },
-    { label: "Reference Check", value: "Reference Check" },
+    { label: "Null Check", value: "NULL_CHECK" },
+    { label: "Numeric Check", value: "NUMERIC_CHECK" },
+    { label: "Range Check", value: "RANGE_CHECK" },
+    { label: "Duplicate Check", value: "DUPLICATE_CHECK" },
+    { label: "Reference Check", value: "REFERENCE_CHECK" },
   ];
 
-  // 🔥 Fetch columns when catalog, schema, table changes
+  // Fetch columns from backend
   useEffect(() => {
     if (!catalogName || !schemaName || !tableName) return;
 
@@ -40,15 +39,11 @@ function DQForm() {
         const response = await fetch(
           `http://127.0.0.1:8000/columns?catalog=${catalogName}&schema=${schemaName}&table=${tableName}`
         );
-        const data = await response.json();
 
-        if (data.columns) {
-          setColumnOptions(data.columns);
-        } else {
-          setColumnOptions([]);
-        }
+        const data = await response.json();
+        setColumnOptions(data.columns || []);
       } catch (error) {
-        console.error("Error fetching columns:", error);
+        console.error("Column fetch error:", error);
         setColumnOptions([]);
       }
     };
@@ -56,33 +51,23 @@ function DQForm() {
     fetchColumns();
   }, [catalogName, schemaName, tableName]);
 
-  // Handle Submit
-  const handleSubmit = async () => {
+  // Submit data to App.js handler
+  const submitForm = () => {
     const payload = {
       databaseType: catalogName,
       schemaName,
       tableName,
-      columnName: selectedColumns,   // MULTIPLE columns sent
-      dqRule: dqRules,               // RULE NAMES
+      columnName: selectedColumns,
+      dqRule: dqRules,
     };
 
-    console.log("Sending payload:", payload);
+    onRunDQ(payload);
+  };
 
-    try {
-      const response = await fetch("http://127.0.0.1:8000/dq-rule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      console.log("API Response:", data);
-
-      alert(`DQ Run Triggered! Run ID = ${data.run_id}`);
-    } catch (err) {
-      console.error(err);
-      alert("Error triggering DQ run");
-    }
+  // Reprocess last run for same config_id (schema+table)
+  const handleReprocessClick = () => {
+    const config_id = `${schemaName}_${tableName}`;
+    onReprocess(config_id);
   };
 
   return (
@@ -100,7 +85,13 @@ function DQForm() {
         Data Quality Execution Form
       </Typography>
 
-      {/* Catalog Name */}
+      {message && (
+        <Typography sx={{ mb: 2, color: "green", textAlign: "center" }}>
+          {message}
+        </Typography>
+      )}
+
+      {/* Catalog */}
       <TextField
         fullWidth
         label="Catalog Name"
@@ -109,7 +100,7 @@ function DQForm() {
         sx={{ mb: 2 }}
       />
 
-      {/* Schema Name */}
+      {/* Schema */}
       <TextField
         fullWidth
         label="Schema Name"
@@ -118,7 +109,7 @@ function DQForm() {
         sx={{ mb: 2 }}
       />
 
-      {/* Table Name */}
+      {/* Table */}
       <TextField
         fullWidth
         label="Table Name"
@@ -127,36 +118,32 @@ function DQForm() {
         sx={{ mb: 2 }}
       />
 
-      {/* Dynamic Column Dropdown (Multi-Select) */}
+      {/* Column Multi Select */}
       <FormControl fullWidth sx={{ mb: 2 }}>
         <InputLabel>Select Columns</InputLabel>
         <Select
           multiple
           value={selectedColumns}
           onChange={(e) => setSelectedColumns(e.target.value)}
-          renderValue={(selected) => selected.join(", ")}
+          renderValue={(sel) => sel.join(", ")}
         >
-          {columnOptions.length === 0 ? (
-            <MenuItem disabled>No columns available</MenuItem>
-          ) : (
-            columnOptions.map((col) => (
-              <MenuItem key={col} value={col}>
-                <Checkbox checked={selectedColumns.includes(col)} />
-                <ListItemText primary={col} />
-              </MenuItem>
-            ))
-          )}
+          {columnOptions.map((col) => (
+            <MenuItem key={col} value={col}>
+              <Checkbox checked={selectedColumns.includes(col)} />
+              <ListItemText primary={col} />
+            </MenuItem>
+          ))}
         </Select>
       </FormControl>
 
-      {/* DQ Rules Multi-select */}
+      {/* DQ Rules */}
       <FormControl fullWidth sx={{ mb: 2 }}>
         <InputLabel>Select DQ Rules</InputLabel>
         <Select
           multiple
           value={dqRules}
           onChange={(e) => setDqRules(e.target.value)}
-          renderValue={(selected) => selected.join(", ")}
+          renderValue={(sel) => sel.join(", ")}
         >
           {dqRuleOptions.map((rule) => (
             <MenuItem key={rule.value} value={rule.value}>
@@ -167,9 +154,26 @@ function DQForm() {
         </Select>
       </FormControl>
 
-      {/* Submit Button */}
-      <Button fullWidth variant="contained" onClick={handleSubmit}>
-        Run DQ Rules
+      {/* Execute DQ Button */}
+      <Button
+        fullWidth
+        variant="contained"
+        onClick={submitForm}
+        disabled={loading}
+        sx={{ mb: 2 }}
+      >
+        {loading ? "Running..." : "Run DQ Rules"}
+      </Button>
+
+      {/* Reprocess Button */}
+      <Button
+        fullWidth
+        variant="outlined"
+        color="secondary"
+        disabled={!schemaName || !tableName || loading}
+        onClick={handleReprocessClick}
+      >
+        {loading ? "Reprocessing..." : "Reprocess Last Execution"}
       </Button>
     </Box>
   );
