@@ -63,4 +63,4 @@ jobs:
         with:
           app-name: 'DQFPOCWA'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_C1665465AF2340C1B45E0860884A0D9E }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_79EE80D46E6D4FDC8B4A6BF41DB2CAF8 }}
